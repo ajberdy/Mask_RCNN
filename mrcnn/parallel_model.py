@@ -27,11 +27,25 @@ class ParallelModel(KM.Model):
     outputs.
     """
 
+    def set_inner_model(self, keras_model):
+        self.inner_model = keras_model,
+        return keras_model.inputs
+
+    def set_outputs(self, gpu_count):
+        self.gpu_count = gpu_count
+        return self.make_parallel()
+
     def __init__(self, keras_model, gpu_count):
         """Class constructor.
         keras_model: The Keras model to parallelize
         gpu_count: Number of GPUs. Must be > 1
         """
+        # super(ParallelModel, self).__init__(
+        #     inputs=self.set_inner_model(keras_model),
+        #     outputs=self.set_outputs(gpu_count),
+        # )
+        super(ParallelModel, self).__init__()
+        print(dir(keras_model))
         self.inner_model = keras_model
         self.gpu_count = gpu_count
         merged_outputs = self.make_parallel()
@@ -129,7 +143,7 @@ if __name__ == "__main__":
         # Reset default graph. Keras leaves old ops in the graph,
         # which are ignored for execution but clutter graph
         # visualization in TensorBoard.
-        tf.reset_default_graph()
+        tf.compat.v1.reset_default_graph()
 
         inputs = KL.Input(shape=x_train.shape[1:], name="input_image")
         x = KL.Conv2D(32, (3, 3), activation='relu', padding="same",
@@ -141,7 +155,7 @@ if __name__ == "__main__":
         x = KL.Dense(128, activation='relu', name="dense1")(x)
         x = KL.Dense(num_classes, activation='softmax', name="dense2")(x)
 
-        return KM.Model(inputs, x, "digit_classifier_model")
+        return KM.Model(inputs=inputs, outputs=x, name="digit_classifier_model")
 
     # Load MNIST Data
     (x_train, y_train), (x_test, y_test) = mnist.load_data()
@@ -158,7 +172,7 @@ if __name__ == "__main__":
     # Add multi-GPU support.
     model = ParallelModel(model, GPU_COUNT)
 
-    optimizer = keras.optimizers.SGD(lr=0.01, momentum=0.9, clipnorm=5.0)
+    optimizer = tf.keras.optimizers.SGD(lr=0.01, momentum=0.9, clipnorm=5.0)
 
     model.compile(loss='sparse_categorical_crossentropy',
                   optimizer=optimizer, metrics=['accuracy'])
@@ -170,6 +184,6 @@ if __name__ == "__main__":
         datagen.flow(x_train, y_train, batch_size=64),
         steps_per_epoch=50, epochs=10, verbose=1,
         validation_data=(x_test, y_test),
-        callbacks=[keras.callbacks.TensorBoard(log_dir=MODEL_DIR,
-                                               write_graph=True)]
+        callbacks=[tf.keras.callbacks.TensorBoard(log_dir=MODEL_DIR,
+                                                  write_graph=True)]
     )
